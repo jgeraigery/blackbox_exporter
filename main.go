@@ -31,6 +31,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/prometheus/common/expfmt"
+	"github.com/prometheus/common/https"
 	"github.com/prometheus/common/promlog"
 	"github.com/prometheus/common/promlog/flag"
 	"github.com/prometheus/common/version"
@@ -48,6 +49,7 @@ var (
 
 	configFile    = kingpin.Flag("config.file", "Blackbox exporter configuration file.").Default("blackbox.yml").String()
 	listenAddress = kingpin.Flag("web.listen-address", "The address to listen on for HTTP requests.").Default(":9115").String()
+	tlsConfigFile = kingpin.Flag("web.tls-config", "The path to the tls-config.yml").Default("").String()
 	timeoutOffset = kingpin.Flag("timeout-offset", "Offset to subtract from timeout in seconds.").Default("0.5").Float64()
 	configCheck   = kingpin.Flag("config.check", "If true validate the config file and then exit.").Default().Bool()
 	historyLimit  = kingpin.Flag("history.limit", "The maximum amount of items to keep in the history.").Default("100").Uint()
@@ -327,8 +329,13 @@ func main() {
 		w.Write(c)
 	})
 
+	srv := &http.Server{Addr: *listenAddress}
+	if len(*tlsConfigFile) > 0 {
+		srv.TLSConfig = https.GetTLSConfig(*tlsConfigFile)
+	}
+
 	level.Info(logger).Log("msg", "Listening on address", "address", *listenAddress)
-	if err := http.ListenAndServe(*listenAddress, nil); err != nil {
+	if err := https.Listen(srv); err != nil {
 		level.Error(logger).Log("msg", "Error starting HTTP server", "err", err)
 		os.Exit(1)
 	}
